@@ -130,4 +130,20 @@ class HealthTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray());
     }
+
+    @Test
+    void bulk_requires_at_least_one_payment() throws Exception {
+        UUID user_id = UUID.randomUUID();
+        UUID session_id = UUID.randomUUID();
+        var editor = new Account(user_id, "editor", "Editor", "unused", "EDITOR", true, false, 0, null);
+        when(accounts.session_account(session_id)).thenReturn(Optional.of(editor));
+
+        mvc.perform(post("/api/cabinet/payments/bulk")
+                        .header("Authorization", "Bearer " + access_tokens.issue(user_id, session_id))
+                        .contentType("application/json")
+                        .content("""
+                                {"operation":"ARCHIVE","items":[]}
+                                """))
+                .andExpect(status().isBadRequest());
+    }
 }

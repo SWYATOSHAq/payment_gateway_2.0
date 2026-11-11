@@ -31,9 +31,12 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import ru.university.paymentgateway.domain.Payment.Status;
+import ru.university.paymentgateway.dto.BulkPaymentRequest;
+import ru.university.paymentgateway.dto.BulkPaymentResult;
 import ru.university.paymentgateway.dto.PageResponse;
 import ru.university.paymentgateway.dto.PaymentView;
 import ru.university.paymentgateway.filter.PaymentFilter;
+import ru.university.paymentgateway.service.BulkPaymentService;
 import ru.university.paymentgateway.service.PaymentCabinetService;
 
 @RestController
@@ -41,8 +44,16 @@ import ru.university.paymentgateway.service.PaymentCabinetService;
 public class PaymentCabinetController {
     private final PaymentCabinetService payments;
 
-    public PaymentCabinetController(PaymentCabinetService payments) {
+    private final BulkPaymentService bulk;
+
+    public PaymentCabinetController(PaymentCabinetService payments, BulkPaymentService bulk) {
         this.payments = payments;
+        this.bulk = bulk;
+    }
+
+    @PostMapping("/bulk")
+    public BulkPaymentResult bulk(JwtAuthenticationToken token, @Valid @RequestBody BulkPaymentRequest request) {
+        return bulk.execute(actor(token), request);
     }
 
     @GetMapping
@@ -51,8 +62,7 @@ public class PaymentCabinetController {
                                           @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
                                           @RequestParam(defaultValue = "CREATED_AT") OrderBy sort,
                                           @RequestParam(defaultValue = "DESC") Sort.Direction direction) {
-        return payments.list(filter, page, size, Sort.by(direction, sort.field).and(sort == OrderBy.NUMBER
-                ? Sort.unsorted() : Sort.by(direction, "id")));
+        return payments.list(filter, page, size, sort.to_sort(direction));
     }
 
     @GetMapping("/{id}")
@@ -103,12 +113,16 @@ public class PaymentCabinetController {
     }
 
     public enum OrderBy {
-        CREATED_AT("created_at"), UPDATED_AT("updated_at"), AMOUNT("amount"), NUMBER("id");
+        CREATED_AT("createdAt"), UPDATED_AT("updatedAt"), AMOUNT("amount"), NUMBER("id");
 
         private final String field;
 
         OrderBy(String field) {
             this.field = field;
+        }
+
+        Sort to_sort(Sort.Direction direction) {
+            return this == NUMBER ? Sort.by(direction, field) : Sort.by(direction, field, "id");
         }
     }
 
