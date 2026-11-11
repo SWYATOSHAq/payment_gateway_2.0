@@ -43,7 +43,10 @@ public class AuthConfiguration {
                 .authorizeHttpRequests(requests -> requests
                         .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/refresh").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                        .requestMatchers("/api/cabinet/**").hasAnyRole("VIEWER", "EDITOR", "ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/cabinet/**").hasAnyRole("VIEWER", "EDITOR", "ADMIN")
+                        .requestMatchers("/api/cabinet/merchants", "/api/cabinet/merchants/**",
+                                "/api/cabinet/payments/*/permanent").hasRole("ADMIN")
+                        .requestMatchers("/api/cabinet/**").hasAnyRole("EDITOR", "ADMIN")
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(resource -> resource.jwt(jwt -> jwt.jwtAuthenticationConverter(token -> {
                     var account = accounts.session_account(UUID.fromString(token.getClaimAsString("sid")))

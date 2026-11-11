@@ -23,7 +23,7 @@ public class CheckoutRepository {
     public Optional<CheckoutPayment> reserve(long merchant_id, String order_number, BigDecimal amount) {
         return jdbc.sql("""
                 INSERT INTO payments (merchant_id, order_number, amount, currency, description, checkout_created_at)
-                SELECT id, :order, :amount, 'RUB', :description, now() FROM merchants WHERE id = :merchant
+                SELECT id, :order, :amount, 'RUB', :description, now() FROM merchants WHERE id = :merchant AND active
                 ON CONFLICT (merchant_id, order_number) DO UPDATE SET order_number = EXCLUDED.order_number
                 RETURNING uuid, amount, status, checkout_created_at, payment_url, payment_method
                 """)
@@ -42,7 +42,10 @@ public class CheckoutRepository {
 
     @Transactional
     public void save_link(UUID uuid, String url) {
-        int updated = jdbc.sql("UPDATE payments SET payment_url = :url WHERE uuid = :uuid AND payment_url IS NULL")
+        int updated = jdbc.sql("""
+                UPDATE payments SET payment_url = :url, updated_at = now(), version = version + 1
+                WHERE uuid = :uuid AND payment_url IS NULL
+                """)
                 .param("uuid", uuid).param("url", url).update();
         if (updated == 1) {
             audit.record(null, "PAYMENT_LINK_CREATED", "PAYMENT", uuid, "Создана ссылка на оплату");
@@ -53,7 +56,8 @@ public class CheckoutRepository {
     public boolean complete(UUID uuid, BigDecimal amount, long transaction_id, String method) {
         int updated = jdbc.sql("""
                 UPDATE payments
-                SET status = 'COMPLETED', provider_transaction_id = :transaction, payment_method = :method
+                SET status = 'COMPLETED', provider_transaction_id = :transaction, payment_method = :method,
+                    updated_at = now(), version = version + 1
                 WHERE uuid = :uuid AND checkout_created_at IS NOT NULL
                     AND amount = :amount AND currency = 'RUB' AND status = 'CREATED'
                 """)
@@ -73,8 +77,9 @@ public class CheckoutRepository {
     }
 
     private static CheckoutPayment map_payment(java.sql.ResultSet row, int index) throws java.sql.SQLException {
+        var created = row.getObject("checkout_created_at", OffsetDateTime.class);
         return new CheckoutPayment(row.getObject("uuid", UUID.class), row.getBigDecimal("amount"),
-                row.getString("status"), row.getObject("checkout_created_at", OffsetDateTime.class).toInstant(),
+                row.getString("status"), created == null ? null : created.toInstant(),
                 row.getString("payment_url"), row.getString("payment_method"));
     }
 }

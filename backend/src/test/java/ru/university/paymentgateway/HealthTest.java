@@ -15,10 +15,13 @@ import ru.university.paymentgateway.repository.AdminRepository;
 import ru.university.paymentgateway.repository.AuditRepository;
 import ru.university.paymentgateway.repository.AuthRepository;
 import ru.university.paymentgateway.repository.CheckoutRepository;
+import ru.university.paymentgateway.repository.MerchantRepository;
+import ru.university.paymentgateway.repository.PaymentRepository;
 import ru.university.paymentgateway.security.AccessTokens;
 
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -37,6 +40,12 @@ class HealthTest {
 
     @MockitoBean
     private AuditRepository audit;
+
+    @MockitoBean
+    private MerchantRepository merchants;
+
+    @MockitoBean
+    private PaymentRepository cabinet_payments;
 
     @Autowired
     private MockMvc mvc;
@@ -87,5 +96,17 @@ class HealthTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.total").value(0))
                 .andExpect(header().string("X-Correlation-ID", correlation_id.toString()));
+    }
+
+    @Test
+    void viewer_cannot_create_cabinet_payment() throws Exception {
+        UUID user_id = UUID.randomUUID();
+        UUID session_id = UUID.randomUUID();
+        var viewer = new Account(user_id, "viewer", "Viewer", "unused", "VIEWER", true, false, 0, null);
+        when(accounts.session_account(session_id)).thenReturn(Optional.of(viewer));
+
+        mvc.perform(post("/api/cabinet/payments")
+                        .header("Authorization", "Bearer " + access_tokens.issue(user_id, session_id)))
+                .andExpect(status().isForbidden());
     }
 }

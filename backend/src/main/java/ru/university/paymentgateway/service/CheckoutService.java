@@ -53,7 +53,10 @@ public class CheckoutService {
         }
 
         var payment = payments.reserve(merchant_id, order, amount.setScale(2, RoundingMode.UNNECESSARY))
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Магазин не настроен"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Магазин не настроен или отключён"));
+        if (payment.checkout_created_at() == null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Номер заказа уже используется ручным платежом");
+        }
         if (payment.amount().compareTo(amount) != 0) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Заказ уже создан с другой суммой");
         }
