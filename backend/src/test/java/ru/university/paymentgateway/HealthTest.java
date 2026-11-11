@@ -16,6 +16,7 @@ import ru.university.paymentgateway.repository.AuditRepository;
 import ru.university.paymentgateway.repository.AuthRepository;
 import ru.university.paymentgateway.repository.CheckoutRepository;
 import ru.university.paymentgateway.repository.MerchantRepository;
+import ru.university.paymentgateway.repository.PaymentAnalyticsRepository;
 import ru.university.paymentgateway.repository.PaymentRepository;
 import ru.university.paymentgateway.repository.PaymentNoteRepository;
 import ru.university.paymentgateway.repository.PaymentNoteRepository.NotePayment;
@@ -55,6 +56,9 @@ class HealthTest {
 
     @MockitoBean
     private PaymentCsvService csv;
+
+    @MockitoBean
+    private PaymentAnalyticsRepository analytics;
 
     @Autowired
     private MockMvc mvc;
@@ -164,5 +168,10 @@ class HealthTest {
                         .content("--check--\r\n")
                         .param("mode", "CREATE_ONLY"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void analytics_requires_a_session() throws Exception {
+        mvc.perform(get("/api/analytics/summary")).andExpect(status().isUnauthorized());
     }
 }

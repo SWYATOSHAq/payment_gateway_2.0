@@ -37,13 +37,15 @@ import ru.university.paymentgateway.service.AuthService;
 public class AuthConfiguration {
     @Bean
     SecurityFilterChain account_security(HttpSecurity http, AuthRepository accounts) throws Exception {
-        return http.securityMatcher("/api/auth/**", "/api/admin/**", "/api/cabinet/**")
+        return http.securityMatcher("/api/auth/**", "/api/admin/**", "/api/cabinet/**", "/api/analytics/**")
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(requests -> requests
                         .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/refresh").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/cabinet/**").hasAnyRole("VIEWER", "EDITOR", "ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/cabinet/**", "/api/analytics/summary")
+                                .hasAnyRole("VIEWER", "EDITOR", "ADMIN")
+                        .requestMatchers("/api/analytics/**").denyAll()
                         .requestMatchers("/api/cabinet/merchants", "/api/cabinet/merchants/**",
                                 "/api/cabinet/payments/*/permanent").hasRole("ADMIN")
                         .requestMatchers("/api/cabinet/**").hasAnyRole("EDITOR", "ADMIN")
