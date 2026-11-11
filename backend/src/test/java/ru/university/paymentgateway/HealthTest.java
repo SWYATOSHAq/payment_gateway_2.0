@@ -17,6 +17,8 @@ import ru.university.paymentgateway.repository.AuthRepository;
 import ru.university.paymentgateway.repository.CheckoutRepository;
 import ru.university.paymentgateway.repository.MerchantRepository;
 import ru.university.paymentgateway.repository.PaymentRepository;
+import ru.university.paymentgateway.repository.PaymentNoteRepository;
+import ru.university.paymentgateway.repository.PaymentNoteRepository.NotePayment;
 import ru.university.paymentgateway.security.AccessTokens;
 
 import static org.mockito.Mockito.when;
@@ -46,6 +48,9 @@ class HealthTest {
 
     @MockitoBean
     private PaymentRepository cabinet_payments;
+
+    @MockitoBean
+    private PaymentNoteRepository notes;
 
     @Autowired
     private MockMvc mvc;
@@ -108,5 +113,21 @@ class HealthTest {
         mvc.perform(post("/api/cabinet/payments")
                         .header("Authorization", "Bearer " + access_tokens.issue(user_id, session_id)))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void viewer_can_read_payment_notes() throws Exception {
+        UUID user_id = UUID.randomUUID();
+        UUID session_id = UUID.randomUUID();
+        UUID payment_id = UUID.randomUUID();
+        when(notes.payment(payment_id, false)).thenReturn(Optional.of(new NotePayment(1, false)));
+        when(notes.list(1)).thenReturn(List.of());
+        var viewer = new Account(user_id, "viewer", "Viewer", "unused", "VIEWER", true, false, 0, null);
+        when(accounts.session_account(session_id)).thenReturn(Optional.of(viewer));
+
+        mvc.perform(get("/api/cabinet/payments/{id}/notes", payment_id)
+                        .header("Authorization", "Bearer " + access_tokens.issue(user_id, session_id)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray());
     }
 }
