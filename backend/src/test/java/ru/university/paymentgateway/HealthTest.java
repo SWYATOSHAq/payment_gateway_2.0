@@ -75,7 +75,11 @@ class HealthTest {
 
     @Test
     void current_user_requires_access_token() throws Exception {
-        mvc.perform(get("/api/auth/me")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/auth/me"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("WWW-Authenticate", "Bearer"))
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.detail").isNotEmpty());
     }
 
     @Test
@@ -120,7 +124,9 @@ class HealthTest {
 
         mvc.perform(post("/api/cabinet/payments")
                         .header("Authorization", "Bearer " + access_tokens.issue(user_id, session_id)))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.detail").isNotEmpty());
     }
 
     @Test
@@ -209,6 +215,8 @@ class HealthTest {
                         .content("""
                                 {"orderNumber":"demo-1","amount":125.50}
                                 """))
-                .andExpect(status().isServiceUnavailable());
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.status").value(503))
+                .andExpect(jsonPath("$.detail").value("Встроенная оплата не настроена"));
     }
 }

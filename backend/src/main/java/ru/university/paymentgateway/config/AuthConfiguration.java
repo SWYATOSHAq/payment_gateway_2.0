@@ -1,6 +1,9 @@
 package ru.university.paymentgateway.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
 import java.time.Duration;
 import java.util.Base64;
 import java.util.List;
@@ -12,6 +15,9 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
+import org.springframework.http.ProblemDetail;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -27,7 +33,11 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.resource.InvalidBearerTokenException;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenAuthenticationEntryPoint;
+import org.springframework.security.oauth2.server.resource.web.access.BearerTokenAccessDeniedHandler;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.AccessDeniedHandler;
 import ru.university.paymentgateway.repository.AuthRepository;
 import ru.university.paymentgateway.security.AccessTokens;
 import ru.university.paymentgateway.service.AuthService;
@@ -36,10 +46,21 @@ import ru.university.paymentgateway.service.AuthService;
 @EnableWebSecurity
 public class AuthConfiguration {
     @Bean
-    SecurityFilterChain account_security(HttpSecurity http, AuthRepository accounts) throws Exception {
+    SecurityFilterChain account_security(HttpSecurity http, AuthRepository accounts, ObjectMapper json) throws Exception {
+        var bearer_entry_point = new BearerTokenAuthenticationEntryPoint();
+        var bearer_denied = new BearerTokenAccessDeniedHandler();
+        AuthenticationEntryPoint entry_point = (request, response, failure) -> {
+            bearer_entry_point.commence(request, response, failure);
+            write_problem(json, response, "Проверьте данные для входа или войдите заново");
+        };
+        AccessDeniedHandler denied = (request, response, failure) -> {
+            bearer_denied.handle(request, response, failure);
+            write_problem(json, response, "Для этого действия недостаточно прав");
+        };
         return http.securityMatcher("/api/auth/**", "/api/admin/**", "/api/cabinet/**", "/api/analytics/**")
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(errors -> errors.authenticationEntryPoint(entry_point).accessDeniedHandler(denied))
                 .authorizeHttpRequests(requests -> requests
                         .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/refresh").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
@@ -50,14 +71,21 @@ public class AuthConfiguration {
                                 "/api/cabinet/payments/*/permanent").hasRole("ADMIN")
                         .requestMatchers("/api/cabinet/**").hasAnyRole("EDITOR", "ADMIN")
                         .anyRequest().authenticated())
-                .oauth2ResourceServer(resource -> resource.jwt(jwt -> jwt.jwtAuthenticationConverter(token -> {
-                    var account = accounts.session_account(UUID.fromString(token.getClaimAsString("sid")))
-                            .filter(user -> user.id().toString().equals(token.getSubject()))
-                            .orElseThrow(() -> new InvalidBearerTokenException("Сессия истекла"));
-                    String role = account.must_change_password() ? "PASSWORD_CHANGE" : account.role();
-                    return new JwtAuthenticationToken(token, List.of(new SimpleGrantedAuthority("ROLE_" + role)));
-                })))
+                .oauth2ResourceServer(resource -> resource.authenticationEntryPoint(entry_point)
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(token -> {
+                            var account = accounts.session_account(UUID.fromString(token.getClaimAsString("sid")))
+                                    .filter(user -> user.id().toString().equals(token.getSubject()))
+                                    .orElseThrow(() -> new InvalidBearerTokenException("Сессия истекла"));
+                            String role = account.must_change_password() ? "PASSWORD_CHANGE" : account.role();
+                            return new JwtAuthenticationToken(token, List.of(new SimpleGrantedAuthority("ROLE_" + role)));
+                        })))
                 .build();
+    }
+
+    private static void write_problem(ObjectMapper json, HttpServletResponse response, String detail) throws IOException {
+        response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
+        json.writeValue(response.getOutputStream(), ProblemDetail.forStatusAndDetail(
+                HttpStatusCode.valueOf(response.getStatus()), detail));
     }
 
     @Bean
