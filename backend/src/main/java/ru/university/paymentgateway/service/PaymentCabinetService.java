@@ -65,12 +65,8 @@ public class PaymentCabinetService {
     @Transactional
     public PaymentView update(UUID actor, UUID id, long version, BigDecimal amount, String description, Status status,
                               boolean needs_review, Set<String> tags) {
-        Payment payment = find_editable(id, version);
-        boolean amount_changed = amount.compareTo(payment.amount()) != 0;
-        boolean status_changed = status != payment.status();
-        if (amount_changed || status_changed) {
-            require_new_manual(payment);
-        }
+        Payment payment = find_current(id, version);
+        validate_edit(payment, amount, status);
         String updated_description = payment.description().equals(description) ? description : description.strip();
         if (!payment.description().equals(updated_description) && updated_description.length() > 500) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Описание должно содержать не более 500 символов");
@@ -137,10 +133,21 @@ public class PaymentCabinetService {
 
     private Payment find_editable(UUID id, long version) {
         Payment payment = find_current(id, version);
+        require_editable(payment);
+        return payment;
+    }
+
+    static void validate_edit(Payment payment, BigDecimal amount, Status status) {
+        require_editable(payment);
+        if (amount.compareTo(payment.amount()) != 0 || status != payment.status()) {
+            require_new_manual(payment);
+        }
+    }
+
+    private static void require_editable(Payment payment) {
         if (payment.archived()) {
             throw conflict("Сначала восстановите платёж из архива");
         }
-        return payment;
     }
 
     private static void require_new_manual(Payment payment) {

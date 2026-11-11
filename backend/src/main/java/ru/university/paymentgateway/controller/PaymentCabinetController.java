@@ -15,8 +15,11 @@ import java.util.Set;
 import java.util.UUID;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -30,14 +33,19 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 import ru.university.paymentgateway.domain.Payment.Status;
 import ru.university.paymentgateway.dto.BulkPaymentRequest;
 import ru.university.paymentgateway.dto.BulkPaymentResult;
+import ru.university.paymentgateway.dto.CsvImportReport;
+import ru.university.paymentgateway.dto.CsvImportReport.Mode;
 import ru.university.paymentgateway.dto.PageResponse;
 import ru.university.paymentgateway.dto.PaymentView;
 import ru.university.paymentgateway.filter.PaymentFilter;
 import ru.university.paymentgateway.service.BulkPaymentService;
 import ru.university.paymentgateway.service.PaymentCabinetService;
+import ru.university.paymentgateway.service.PaymentCsvService;
 
 @RestController
 @RequestMapping("/api/cabinet/payments")
@@ -45,10 +53,12 @@ public class PaymentCabinetController {
     private final PaymentCabinetService payments;
 
     private final BulkPaymentService bulk;
+    private final PaymentCsvService csv;
 
-    public PaymentCabinetController(PaymentCabinetService payments, BulkPaymentService bulk) {
+    public PaymentCabinetController(PaymentCabinetService payments, BulkPaymentService bulk, PaymentCsvService csv) {
         this.payments = payments;
         this.bulk = bulk;
+        this.csv = csv;
     }
 
     @PostMapping("/bulk")
@@ -63,6 +73,30 @@ public class PaymentCabinetController {
                                           @RequestParam(defaultValue = "CREATED_AT") OrderBy sort,
                                           @RequestParam(defaultValue = "DESC") Sort.Direction direction) {
         return payments.list(filter, page, size, sort.to_sort(direction));
+    }
+
+    @GetMapping(value = "/export", produces = "text/csv;charset=UTF-8")
+    public ResponseEntity<StreamingResponseBody> export(@Valid @ModelAttribute PaymentFilter filter,
+                                                         @RequestParam(defaultValue = "CREATED_AT") OrderBy sort,
+                                                         @RequestParam(defaultValue = "DESC") Sort.Direction direction) {
+        StreamingResponseBody body = output -> csv.export(filter, sort.to_sort(direction), output);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=payments.csv")
+                .contentType(MediaType.parseMediaType("text/csv;charset=UTF-8"))
+                .body(body);
+    }
+
+    @PostMapping(value = "/import/preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public CsvImportReport preview(@RequestParam MultipartFile file, @RequestParam Mode mode) {
+        return csv.preview(file, mode);
+    }
+
+    @PostMapping(value = "/import/apply", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<CsvImportReport> apply(JwtAuthenticationToken token,
+                                                 @RequestParam MultipartFile file, @RequestParam Mode mode) {
+        CsvImportReport report = csv.apply(actor(token), file, mode);
+        return ResponseEntity.status(report.invalidRows() == 0 ? HttpStatus.OK : HttpStatus.UNPROCESSABLE_ENTITY)
+                .body(report);
     }
 
     @GetMapping("/{id}")

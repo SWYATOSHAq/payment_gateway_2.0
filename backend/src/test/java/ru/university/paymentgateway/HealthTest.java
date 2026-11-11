@@ -20,6 +20,7 @@ import ru.university.paymentgateway.repository.PaymentRepository;
 import ru.university.paymentgateway.repository.PaymentNoteRepository;
 import ru.university.paymentgateway.repository.PaymentNoteRepository.NotePayment;
 import ru.university.paymentgateway.security.AccessTokens;
+import ru.university.paymentgateway.service.PaymentCsvService;
 
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -51,6 +52,9 @@ class HealthTest {
 
     @MockitoBean
     private PaymentNoteRepository notes;
+
+    @MockitoBean
+    private PaymentCsvService csv;
 
     @Autowired
     private MockMvc mvc;
@@ -144,6 +148,21 @@ class HealthTest {
                         .content("""
                                 {"operation":"ARCHIVE","items":[]}
                                 """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void csv_preview_requires_a_file() throws Exception {
+        UUID user_id = UUID.randomUUID();
+        UUID session_id = UUID.randomUUID();
+        var editor = new Account(user_id, "editor", "Editor", "unused", "EDITOR", true, false, 0, null);
+        when(accounts.session_account(session_id)).thenReturn(Optional.of(editor));
+
+        mvc.perform(post("/api/cabinet/payments/import/preview")
+                        .header("Authorization", "Bearer " + access_tokens.issue(user_id, session_id))
+                        .contentType("multipart/form-data;boundary=check")
+                        .content("--check--\r\n")
+                        .param("mode", "CREATE_ONLY"))
                 .andExpect(status().isBadRequest());
     }
 }
