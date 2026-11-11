@@ -1,7 +1,6 @@
 package ru.university.paymentgateway.service;
 
 import java.math.BigDecimal;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -66,41 +65,22 @@ public class PaymentCabinetService {
     public PaymentView update(UUID actor, UUID id, long version, BigDecimal amount, String description, Status status,
                               boolean needs_review, Set<String> tags) {
         Payment payment = find_current(id, version);
-        validate_edit(payment, amount, status);
+        if (payment.archived()) {
+            throw conflict("Сначала восстановите платёж из архива");
+        }
+        boolean amount_changed = amount.compareTo(payment.amount()) != 0;
+        boolean status_changed = status != payment.status();
+        if ((amount_changed || status_changed) && (payment.cloudpayments() || payment.status() != Status.CREATED)) {
+            throw conflict("Сумма и статус доступны для изменения только у нового ручного платежа");
+        }
         String updated_description = payment.description().equals(description) ? description : description.strip();
         if (!payment.description().equals(updated_description) && updated_description.length() > 500) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Описание должно содержать не более 500 символов");
         }
         payment.update(amount, updated_description, status, needs_review, normalize_tags(tags));
-        return record_update(actor, payment, "PAYMENT_UPDATED", "Изменён платёж");
-    }
-
-    @Transactional
-    public PaymentView change_status(UUID actor, UUID id, long version, Status status) {
-        Payment payment = find_editable(id, version);
-        if (payment.status() == status) {
-            return PaymentView.from(payment);
-        }
-        require_new_manual(payment);
-        payment.update(payment.amount(), payment.description(), status, payment.needs_review(), payment.tags());
-        return record_update(actor, payment, "PAYMENT_STATUS_CHANGED", "Изменён статус платежа");
-    }
-
-    @Transactional
-    public PaymentView change_tag(UUID actor, UUID id, long version, String tag, boolean add) {
-        Payment payment = find_editable(id, version);
-        Set<String> tags = new HashSet<>(payment.tags());
-        String normalized = PaymentFilter.normalize_tag(tag);
-        boolean changed = add ? tags.add(normalized) : tags.remove(normalized);
-        if (!changed) {
-            return PaymentView.from(payment);
-        }
-        if (tags.size() > 20) {
-            throw conflict("У платежа может быть не более 20 тегов");
-        }
-        payment.update(payment.amount(), payment.description(), payment.status(), payment.needs_review(), tags);
-        return record_update(actor, payment, add ? "PAYMENT_TAG_ADDED" : "PAYMENT_TAG_REMOVED",
-                add ? "Добавлен тег платежа" : "Удалён тег платежа");
+        payments.flush();
+        audit.record(actor, "PAYMENT_UPDATED", "PAYMENT", id, "Изменён платёж");
+        return PaymentView.from(payment);
     }
 
     @Transactional
@@ -108,8 +88,9 @@ public class PaymentCabinetService {
         Payment payment = find_current(id, version);
         if (payment.archived() != archived) {
             payment.archive(archived);
-            return record_update(actor, payment, archived ? "PAYMENT_ARCHIVED" : "PAYMENT_RESTORED",
-                    archived ? "Платёж перенесён в архив" : "Платёж восстановлен");
+            payments.flush();
+            audit.record(actor, archived ? "PAYMENT_ARCHIVED" : "PAYMENT_RESTORED",
+                    "PAYMENT", id, archived ? "Платёж перенесён в архив" : "Платёж восстановлен");
         }
         return PaymentView.from(payment);
     }
@@ -123,37 +104,6 @@ public class PaymentCabinetService {
         payments.delete(payment);
         payments.flush();
         audit.record(actor, "PAYMENT_DELETED", "PAYMENT", id, "Платёж удалён из архива");
-    }
-
-    private PaymentView record_update(UUID actor, Payment payment, String event, String description) {
-        payments.flush();
-        audit.record(actor, event, "PAYMENT", payment.uuid(), description);
-        return PaymentView.from(payment);
-    }
-
-    private Payment find_editable(UUID id, long version) {
-        Payment payment = find_current(id, version);
-        require_editable(payment);
-        return payment;
-    }
-
-    static void validate_edit(Payment payment, BigDecimal amount, Status status) {
-        require_editable(payment);
-        if (amount.compareTo(payment.amount()) != 0 || status != payment.status()) {
-            require_new_manual(payment);
-        }
-    }
-
-    private static void require_editable(Payment payment) {
-        if (payment.archived()) {
-            throw conflict("Сначала восстановите платёж из архива");
-        }
-    }
-
-    private static void require_new_manual(Payment payment) {
-        if (payment.cloudpayments() || payment.status() != Status.CREATED) {
-            throw conflict("Сумма и статус доступны для изменения только у нового ручного платежа");
-        }
     }
 
     private Payment find_current(UUID id, long version) {

@@ -47,10 +47,8 @@ public class Payment {
     private boolean archived;
     private Instant checkout_created_at;
     private String payment_method;
-    @Column(name = "created_at")
-    private Instant createdAt = Instant.now();
-    @Column(name = "updated_at")
-    private Instant updatedAt = createdAt;
+    private Instant created_at = Instant.now();
+    private Instant updated_at = created_at;
     @Version
     private long version;
     @ElementCollection
@@ -75,12 +73,12 @@ public class Payment {
         this.needs_review = needs_review;
         this.tags.clear();
         this.tags.addAll(tags);
-        updatedAt = Instant.now();
+        updated_at = Instant.now();
     }
 
     public void archive(boolean archived) {
         this.archived = archived;
-        updatedAt = Instant.now();
+        updated_at = Instant.now();
     }
 
     public Long id() { return id; }
@@ -95,8 +93,8 @@ public class Payment {
     public boolean archived() { return archived; }
     public boolean cloudpayments() { return checkout_created_at != null; }
     public String payment_method() { return payment_method; }
-    public Instant created_at() { return createdAt; }
-    public Instant updated_at() { return updatedAt; }
+    public Instant created_at() { return created_at; }
+    public Instant updated_at() { return updated_at; }
     public long version() { return version; }
     public Set<String> tags() { return Set.copyOf(tags); }
 }
