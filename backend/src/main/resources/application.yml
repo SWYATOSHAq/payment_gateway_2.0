@@ -8,6 +8,13 @@ server:
   error:
     include-message: always
 
+springdoc:
+  paths-to-match: /api/**
+  default-produces-media-type: application/json
+  swagger-ui:
+    path: /swagger-ui.html
+    disable-swagger-default-url: true
+
 gateway:
   checkout:
     merchant-id: ${GATEWAY_MERCHANT_ID:0}

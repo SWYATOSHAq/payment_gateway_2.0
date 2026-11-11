@@ -1,5 +1,8 @@
 package ru.university.paymentgateway.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -17,9 +20,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import ru.university.paymentgateway.config.OpenApiConfiguration;
 import ru.university.paymentgateway.dto.MerchantView;
 import ru.university.paymentgateway.service.MerchantService;
 
+@Tag(name = "Магазины")
+@SecurityRequirement(name = OpenApiConfiguration.ACCESS_TOKEN)
 @RestController
 @RequestMapping("/api/cabinet/merchants")
 public class MerchantController {
@@ -30,17 +36,20 @@ public class MerchantController {
     }
 
     @GetMapping
+    @Operation(operationId = "listMerchants", summary = "Список магазинов")
     public List<MerchantView> list() {
         return merchants.list();
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @Operation(operationId = "createMerchant", summary = "Создать магазин")
     public MerchantView create(JwtAuthenticationToken token, @Valid @RequestBody CreateMerchant request) {
         return merchants.create(UUID.fromString(token.getToken().getSubject()), request.name(), request.website());
     }
 
     @PutMapping("/{id}")
+    @Operation(operationId = "updateMerchant", summary = "Изменить магазин")
     public MerchantView update(JwtAuthenticationToken token, @PathVariable @Positive long id,
                                @Valid @RequestBody UpdateMerchant request) {
         return merchants.update(UUID.fromString(token.getToken().getSubject()), id,

@@ -1,5 +1,8 @@
 package ru.university.paymentgateway.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -16,9 +19,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import ru.university.paymentgateway.config.OpenApiConfiguration;
 import ru.university.paymentgateway.dto.PaymentNoteView;
 import ru.university.paymentgateway.service.PaymentNoteService;
 
+@Tag(name = "Заметки к платежам")
+@SecurityRequirement(name = OpenApiConfiguration.ACCESS_TOKEN)
 @RestController
 @RequestMapping("/api/cabinet/payments/{paymentId}/notes")
 public class PaymentNoteController {
@@ -29,18 +35,21 @@ public class PaymentNoteController {
     }
 
     @GetMapping
+    @Operation(operationId = "listPaymentNotes", summary = "История заметок")
     public List<PaymentNoteView> list(@PathVariable UUID paymentId) {
         return notes.list(paymentId);
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @Operation(operationId = "createPaymentNote", summary = "Добавить заметку")
     public PaymentNoteView create(@PathVariable UUID paymentId, JwtAuthenticationToken token,
                                   @Valid @RequestBody NoteRequest request) {
         return notes.create(paymentId, actor(token), request.text(), request.pinned());
     }
 
     @PutMapping("/{id}")
+    @Operation(operationId = "updatePaymentNote", summary = "Изменить заметку")
     public PaymentNoteView update(@PathVariable UUID paymentId, @PathVariable UUID id, JwtAuthenticationToken token,
                                   @Valid @RequestBody NoteRequest request) {
         return notes.update(paymentId, id, actor(token), admin(token), request.text(), request.pinned());
@@ -48,6 +57,7 @@ public class PaymentNoteController {
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(operationId = "deletePaymentNote", summary = "Удалить заметку")
     public void delete(@PathVariable UUID paymentId, @PathVariable UUID id, JwtAuthenticationToken token) {
         notes.delete(paymentId, id, actor(token), admin(token));
     }

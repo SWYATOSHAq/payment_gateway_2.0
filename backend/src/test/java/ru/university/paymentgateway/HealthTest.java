@@ -174,4 +174,31 @@ class HealthTest {
     void analytics_requires_a_session() throws Exception {
         mvc.perform(get("/api/analytics/summary")).andExpect(status().isUnauthorized());
     }
+
+    @Test
+    void exposes_openapi_document() throws Exception {
+        mvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.openapi").exists())
+                .andExpect(jsonPath("$.components.securitySchemes.accessToken.bearerFormat").value("JWT"))
+                .andExpect(jsonPath("$.paths['/api/auth/login'].post.security").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/payments'].post.security[0].checkoutKey").isArray())
+                .andExpect(jsonPath("$.paths['/api/analytics/summary'].get.security[0].accessToken").isArray())
+                .andExpect(jsonPath("$.paths['/api/cabinet/payments'].get.parameters[?(@.name == 'q')]").isNotEmpty())
+                .andExpect(jsonPath("$.components.schemas.CreateCheckoutPayment.properties.merchantId").doesNotExist())
+                .andExpect(jsonPath("$.components.schemas.CreatePayment.properties.merchantId").exists())
+                .andExpect(jsonPath("$.paths['/api/cabinet/payments/import/preview'].post.requestBody.content['multipart/form-data'].schema").exists())
+                .andExpect(jsonPath("$.components.schemas.CsvUpload.properties.file.format").value("binary"))
+                .andExpect(jsonPath("$.components.schemas.CsvUpload.properties.mode").exists())
+                .andExpect(jsonPath("$.paths['/api/cabinet/payments/import/apply'].post.responses['422']").exists())
+                .andExpect(jsonPath("$.paths['/api/cabinet/payments/export'].get.responses['200'].content['text/csv'].schema.format")
+                        .value("binary"));
+    }
+
+    @Test
+    void swagger_ui_redirects_to_the_installed_ui() throws Exception {
+        mvc.perform(get("/swagger-ui.html"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(header().string("Location", "/swagger-ui/index.html"));
+    }
 }

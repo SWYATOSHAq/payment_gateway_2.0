@@ -1,5 +1,12 @@
 package ru.university.paymentgateway.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
@@ -13,6 +20,7 @@ import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.util.Set;
 import java.util.UUID;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpHeaders;
@@ -35,11 +43,12 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
+import ru.university.paymentgateway.config.OpenApiConfiguration;
 import ru.university.paymentgateway.domain.Payment.Status;
 import ru.university.paymentgateway.dto.BulkPaymentRequest;
 import ru.university.paymentgateway.dto.BulkPaymentResult;
-import ru.university.paymentgateway.dto.CsvImportReport;
 import ru.university.paymentgateway.dto.CsvImportReport.Mode;
+import ru.university.paymentgateway.dto.CsvImportReport;
 import ru.university.paymentgateway.dto.PageResponse;
 import ru.university.paymentgateway.dto.PaymentView;
 import ru.university.paymentgateway.filter.PaymentFilter;
@@ -47,6 +56,8 @@ import ru.university.paymentgateway.service.BulkPaymentService;
 import ru.university.paymentgateway.service.PaymentCabinetService;
 import ru.university.paymentgateway.service.PaymentCsvService;
 
+@Tag(name = "Кабинет платежей")
+@SecurityRequirement(name = OpenApiConfiguration.ACCESS_TOKEN)
 @RestController
 @RequestMapping("/api/cabinet/payments")
 public class PaymentCabinetController {
@@ -62,12 +73,14 @@ public class PaymentCabinetController {
     }
 
     @PostMapping("/bulk")
+    @Operation(operationId = "bulkUpdatePayments", summary = "Применить массовую операцию")
     public BulkPaymentResult bulk(JwtAuthenticationToken token, @Valid @RequestBody BulkPaymentRequest request) {
         return bulk.execute(actor(token), request);
     }
 
     @GetMapping
-    public PageResponse<PaymentView> list(@Valid @ModelAttribute PaymentFilter filter,
+    @Operation(operationId = "listPayments", summary = "Список платежей")
+    public PageResponse<PaymentView> list(@Valid @ParameterObject @ModelAttribute PaymentFilter filter,
                                           @RequestParam(defaultValue = "0") @Min(0) int page,
                                           @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
                                           @RequestParam(defaultValue = "CREATED_AT") OrderBy sort,
@@ -76,7 +89,10 @@ public class PaymentCabinetController {
     }
 
     @GetMapping(value = "/export", produces = "text/csv;charset=UTF-8")
-    public ResponseEntity<StreamingResponseBody> export(@Valid @ModelAttribute PaymentFilter filter,
+    @Operation(operationId = "exportPaymentsCsv", summary = "Скачать CSV по фильтрам")
+    @ApiResponse(responseCode = "200", description = "CSV-файл в UTF-8",
+            content = @Content(mediaType = "text/csv", schema = @Schema(type = "string", format = "binary")))
+    public ResponseEntity<StreamingResponseBody> export(@Valid @ParameterObject @ModelAttribute PaymentFilter filter,
                                                          @RequestParam(defaultValue = "CREATED_AT") OrderBy sort,
                                                          @RequestParam(defaultValue = "DESC") Sort.Direction direction) {
         StreamingResponseBody body = output -> csv.export(filter, sort.to_sort(direction), output);
@@ -87,31 +103,48 @@ public class PaymentCabinetController {
     }
 
     @PostMapping(value = "/import/preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public CsvImportReport preview(@RequestParam MultipartFile file, @RequestParam Mode mode) {
+    @Operation(operationId = "previewPaymentsCsv", summary = "Проверить CSV перед импортом",
+            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true,
+                    content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+                            schema = @Schema(implementation = CsvUpload.class))))
+    public CsvImportReport preview(@Parameter(hidden = true) @RequestParam MultipartFile file,
+                                   @Parameter(hidden = true) @RequestParam Mode mode) {
         return csv.preview(file, mode);
     }
 
     @PostMapping(value = "/import/apply", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(operationId = "applyPaymentsCsv", summary = "Применить импорт CSV",
+            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true,
+                    content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+                            schema = @Schema(implementation = CsvUpload.class))))
+    @ApiResponse(responseCode = "200", description = "Результат импорта",
+            content = @Content(schema = @Schema(implementation = CsvImportReport.class)))
+    @ApiResponse(responseCode = "422", description = "CSV содержит ошибочные строки",
+            content = @Content(schema = @Schema(implementation = CsvImportReport.class)))
     public ResponseEntity<CsvImportReport> apply(JwtAuthenticationToken token,
-                                                 @RequestParam MultipartFile file, @RequestParam Mode mode) {
+                                                 @Parameter(hidden = true) @RequestParam MultipartFile file,
+                                                 @Parameter(hidden = true) @RequestParam Mode mode) {
         CsvImportReport report = csv.apply(actor(token), file, mode);
         return ResponseEntity.status(report.invalidRows() == 0 ? HttpStatus.OK : HttpStatus.UNPROCESSABLE_ENTITY)
                 .body(report);
     }
 
     @GetMapping("/{id}")
+    @Operation(operationId = "getPayment", summary = "Карточка платежа")
     public PaymentView get(@PathVariable UUID id) {
         return payments.get(id);
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @Operation(operationId = "createPayment", summary = "Создать ручной платёж")
     public PaymentView create(JwtAuthenticationToken token, @Valid @RequestBody CreatePayment request) {
         return payments.create(actor(token), request.merchantId(), request.orderNumber(), request.amount(),
                 request.description(), Boolean.TRUE.equals(request.needsReview()), request.tags());
     }
 
     @PutMapping("/{id}")
+    @Operation(operationId = "updatePayment", summary = "Изменить платёж")
     public PaymentView update(JwtAuthenticationToken token, @PathVariable UUID id,
                               @Valid @RequestBody UpdatePayment request) {
         return payments.update(actor(token), id, request.version(), request.amount(),
@@ -119,12 +152,14 @@ public class PaymentCabinetController {
     }
 
     @DeleteMapping("/{id}")
+    @Operation(operationId = "archivePayment", summary = "Архивировать платёж")
     public PaymentView archive(JwtAuthenticationToken token, @PathVariable UUID id,
                                @RequestParam @PositiveOrZero long version) {
         return payments.archive(actor(token), id, version, true);
     }
 
     @PostMapping("/{id}/restore")
+    @Operation(operationId = "restorePayment", summary = "Восстановить платёж")
     public PaymentView restore(JwtAuthenticationToken token, @PathVariable UUID id,
                                @RequestParam @PositiveOrZero long version) {
         return payments.archive(actor(token), id, version, false);
@@ -132,6 +167,7 @@ public class PaymentCabinetController {
 
     @DeleteMapping("/{id}/permanent")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(operationId = "deletePaymentPermanently", summary = "Удалить ручной платёж окончательно")
     public void delete(JwtAuthenticationToken token, @PathVariable UUID id,
                        @RequestParam @PositiveOrZero long version) {
         payments.delete(actor(token), id, version);
@@ -159,6 +195,10 @@ public class PaymentCabinetController {
             return this == NUMBER ? Sort.by(direction, field) : Sort.by(direction, field, "id");
         }
     }
+
+    public record CsvUpload(
+            @Schema(type = "string", format = "binary", requiredMode = Schema.RequiredMode.REQUIRED) MultipartFile file,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Mode mode) {}
 
     public record CreatePayment(@NotNull @Positive Long merchantId, @Size(max = 100) String orderNumber,
                                 @NotNull @DecimalMin("0.01") @Digits(integer = 10, fraction = 2) BigDecimal amount,
