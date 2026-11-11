@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Payment Gateway</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script src="/checkout.js" defer></script>
+</head>
+<body>
+    <main>
+        <h1>Тестовая оплата</h1>
+        <form id="checkout">
+            <label>Номер заказа
+                <input name="orderNumber" maxlength="100" required>
+            </label>
+            <label>Сумма в рублях
+                <input name="amount" type="number" inputmode="decimal" min="0.01" max="9999999999.99" step="0.01" required>
+            </label>
+            <label>Ключ магазина
+                <input name="key" type="password" autocomplete="off" required>
+            </label>
+            <button type="submit">Создать ссылку</button>
+        </form>
+        <p id="message" role="status"></p>
+        <div id="payment" hidden>
+            <a id="payment-link" target="_blank" rel="noopener noreferrer">Оплатить через CloudPayments</a>
+            <button type="button" id="refresh">Проверить статус</button>
+        </div>
+    </main>
+</body>
+</html>

@@ -1,0 +1,57 @@
+:root {
+    font-family: system-ui, sans-serif;
+    color: #172b26;
+    background: #eff4f2;
+}
+
+main {
+    box-sizing: border-box;
+    width: min(100% - 2rem, 30rem);
+    margin: clamp(1rem, 10vh, 6rem) auto;
+    padding: clamp(1.25rem, 5vw, 2.5rem);
+    background: white;
+    border: 1px solid #cad9d3;
+    border-radius: 1rem;
+}
+
+h1 {
+    margin: 0 0 1.5rem;
+}
+
+form, label, #payment:not([hidden]) {
+    display: grid;
+    gap: 0.5rem;
+}
+
+form, #payment:not([hidden]) {
+    gap: 1rem;
+}
+
+input, button {
+    box-sizing: border-box;
+    min-width: 0;
+    width: 100%;
+    padding: 0.7rem;
+    border: 1px solid #718781;
+    border-radius: 0.4rem;
+    font: inherit;
+}
+
+button {
+    color: white;
+    background: #165843;
+    cursor: pointer;
+}
+
+button:disabled {
+    opacity: 0.65;
+    cursor: wait;
+}
+
+a {
+    color: #165843;
+}
+
+#message:empty {
+    display: none;
+}
