@@ -21,7 +21,7 @@ class CloudPaymentsNotificationsTest {
             + "&Amount=125.50&Currency=RUB&Status=Completed&OperationType=Payment"
             + "&TestMode=1&TransactionId=51&PaymentMethod=Card").getBytes(StandardCharsets.UTF_8);
     private final CheckoutRepository payments = mock(CheckoutRepository.class);
-    private final CloudPaymentsNotifications notifications = new CloudPaymentsNotifications(payments, "test-secret");
+    private final CloudPaymentsNotifications notifications = new CloudPaymentsNotifications(payments, "test-secret", true);
 
     @Test
     void accepts_signed_test_payment() throws Exception {
@@ -46,6 +46,28 @@ class CloudPaymentsNotificationsTest {
         var error = assertThrows(ResponseStatusException.class, () -> notifications.pay(live, signature(live)));
         assertEquals(HttpStatus.BAD_REQUEST, error.getStatusCode());
         verifyNoInteractions(payments);
+    }
+
+    @Test
+    void signed_check_delegates_amount_and_transaction() throws Exception {
+        when(payments.check(INVOICE, new BigDecimal("125.50"), 51, true)).thenReturn(12);
+        assertEquals(12, notifications.check(BODY, signature(BODY)));
+    }
+
+    @Test
+    void check_refuses_a_live_payment() throws Exception {
+        byte[] live = new String(BODY, StandardCharsets.UTF_8)
+                .replace("TestMode=1", "TestMode=0").getBytes(StandardCharsets.UTF_8);
+        assertEquals(13, notifications.check(live, signature(live)));
+        verifyNoInteractions(payments);
+    }
+
+    @Test
+    void signed_fail_releases_the_checked_attempt() throws Exception {
+        byte[] failed = new String(BODY, StandardCharsets.UTF_8)
+                .replace("&Status=Completed", "").getBytes(StandardCharsets.UTF_8);
+        notifications.fail(failed, signature(failed));
+        verify(payments).release(INVOICE, new BigDecimal("125.50"), 51);
     }
 
     private static String signature(byte[] body) throws Exception {

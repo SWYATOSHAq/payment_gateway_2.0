@@ -201,4 +201,14 @@ class HealthTest {
                 .andExpect(status().is3xxRedirection())
                 .andExpect(header().string("Location", "/swagger-ui/index.html"));
     }
+
+    @Test
+    void embedded_checkout_requires_configuration() throws Exception {
+        mvc.perform(post("/api/payments/embedded")
+                        .contentType("application/json")
+                        .content("""
+                                {"orderNumber":"demo-1","amount":125.50}
+                                """))
+                .andExpect(status().isServiceUnavailable());
+    }
 }

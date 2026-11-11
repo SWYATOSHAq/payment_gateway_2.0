@@ -97,13 +97,12 @@ h1 span { color: #78958a; }
 .total-line { align-items: baseline; padding-top: 2px; }
 .total-line span { color: #536d61; font-weight: 700; }
 .total-line strong { color: #183b34; font: 700 23px Manrope, sans-serif; letter-spacing: -.05em; }
+.payment-methods { margin: 20px 0 0; min-width: 0; }
+.payment-methods h3 { margin: 0 0 12px; font-size: 15px; }
 .provider-state { display: grid; gap: 9px; padding: 15px 0 11px; }
 .payment-message { margin: 0; color: #75867e; font-size: 10px; line-height: 1.6; }
 .payment-message[data-state="success"] { color: #376b52; }
 .payment-message[data-state="error"] { color: #865c67; }
-.provider-link { width: 100%; min-height: 43px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 14px; border: 1px solid #214b40; border-radius: 10px; background: linear-gradient(125deg, #214d41, #326854); box-shadow: inset 0 1px #ffffff2e; color: #f4f7f5; font-size: 10px; font-weight: 700; transition: background .18s, transform .18s; }
-.provider-link:hover { transform: translateY(-1px); background: linear-gradient(125deg, #173e35, #285b4a); }
-.provider-link span { font-size: 15px; }
 .status-action { width: fit-content; padding: 4px 0; border: 0; background: transparent; color: #547b6b; font-size: 9px; font-weight: 700; }
 .status-action:hover { color: #183b34; }
 .provider-note { display: flex; align-items: flex-start; gap: 9px; padding: 11px 12px; border: 1px solid #dce6e0; border-radius: 10px; background: #f2f6f3; color: #75867e; font-size: 9px; line-height: 1.55; }

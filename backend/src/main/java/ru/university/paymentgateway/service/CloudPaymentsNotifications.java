@@ -22,41 +22,84 @@ import ru.university.paymentgateway.repository.CheckoutRepository;
 public class CloudPaymentsNotifications {
     private final CheckoutRepository payments;
     private final String api_secret;
+    private final boolean embedded_enabled;
 
     public CloudPaymentsNotifications(CheckoutRepository payments,
-                                      @Value("${gateway.cloudpayments.api-secret}") String api_secret) {
+                                      @Value("${gateway.cloudpayments.api-secret}") String api_secret,
+                                      @Value("${gateway.cloudpayments.embedded-enabled}") boolean embedded_enabled) {
         this.payments = payments;
         this.api_secret = api_secret;
+        this.embedded_enabled = embedded_enabled;
+    }
+
+    public int check(byte[] body, String signature) {
+        Notice notice = parse_notice(body, signature);
+        if (!notice.test() || !"Payment".equals(notice.operation()) || !"Completed".equals(notice.status())) {
+            return 13;
+        }
+        if (!"RUB".equals(notice.currency())) {
+            return 12;
+        }
+        try {
+            return payments.check(notice.invoice(), notice.amount(), notice.transaction(), embedded_enabled);
+        } catch (DataIntegrityViolationException exception) {
+            return 13;
+        }
     }
 
     public void pay(byte[] body, String signature) {
+        Notice notice = parse_notice(body, signature);
+        if (!notice.test_payment() || !"Completed".equals(notice.status())) {
+            throw invalid_notice();
+        }
+        try {
+            if (!payments.complete(notice.invoice(), notice.amount(), notice.transaction(), notice.method())) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Уведомление не соответствует платежу");
+            }
+        } catch (DataIntegrityViolationException exception) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Транзакция уже связана с другим платежом");
+        }
+    }
+
+    public void fail(byte[] body, String signature) {
+        Notice notice = parse_notice(body, signature);
+        if (!notice.test_payment()) {
+            throw invalid_notice();
+        }
+        payments.release(notice.invoice(), notice.amount(), notice.transaction());
+    }
+
+    private Notice parse_notice(byte[] body, String signature) {
         if (!valid_signature(body, signature)) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Неверная подпись CloudPayments");
         }
-
-        boolean completed;
         try {
             Map<String, String> fields = parse_form(body);
             String method = fields.get("PaymentMethod");
-            if (method == null && fields.containsKey("CardType")) {
+            if ((method == null || method.isBlank()) && fields.containsKey("CardType")) {
                 method = "Card";
             }
             UUID invoice = UUID.fromString(fields.getOrDefault("InvoiceId", ""));
             BigDecimal amount = new BigDecimal(fields.getOrDefault("Amount", ""));
             long transaction = Long.parseLong(fields.getOrDefault("TransactionId", ""));
-            if (!"RUB".equals(fields.get("Currency")) || !"Completed".equals(fields.get("Status"))
-                    || !"Payment".equals(fields.get("OperationType")) || !"1".equals(fields.get("TestMode"))
-                    || transaction <= 0 || amount.signum() <= 0 || (method != null && method.length() > 64)) {
-                throw new IllegalArgumentException("Invalid payment notification");
+            if (transaction <= 0 || amount.signum() <= 0 || (method != null && method.length() > 64)) {
+                throw invalid_notice();
             }
-            completed = payments.complete(invoice, amount, transaction, method);
+            return new Notice(invoice, amount, transaction, fields.get("Currency"), fields.get("Status"),
+                    fields.get("OperationType"), "1".equals(fields.get("TestMode")), method);
         } catch (IllegalArgumentException exception) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Некорректное уведомление CloudPayments");
-        } catch (DataIntegrityViolationException exception) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Транзакция уже связана с другим платежом");
+            throw invalid_notice();
         }
-        if (!completed) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Уведомление не соответствует платежу");
+    }
+
+    private static ResponseStatusException invalid_notice() {
+        return new ResponseStatusException(HttpStatus.BAD_REQUEST, "Некорректное уведомление CloudPayments");
+    }
+
+    private record Notice(UUID invoice, BigDecimal amount, long transaction, String currency,
+                          String status, String operation, boolean test, String method) {
+        boolean test_payment() {
+            return test && "Payment".equals(operation) && "RUB".equals(currency);
         }
     }
 

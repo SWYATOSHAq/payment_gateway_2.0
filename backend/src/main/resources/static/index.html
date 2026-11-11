@@ -9,8 +9,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/styles.css?v=4">
-    <script src="/checkout.js?v=4" defer></script>
+    <link rel="stylesheet" href="/styles.css?v=5">
+    <script src="/checkout.js?v=5" defer></script>
 </head>
 <body>
     <div class="page-shell">
@@ -24,11 +24,11 @@
 
         <main class="checkout-layout">
             <section class="checkout-intro" aria-labelledby="page-title">
-                <div class="eyebrow"><span class="status-dot"></span> SECURE CHECKOUT · CLOUDPAYMENTS</div>
+                <div class="eyebrow"><span class="status-dot"></span> ОПЛАТА ЧЕРЕЗ CLOUDPAYMENTS</div>
                 <h1 id="page-title">Оплата<br><span>без лишнего.</span></h1>
-                <p class="intro-copy">Создайте платёжную ссылку — и продолжите на защищённой странице провайдера. Данные карты вводятся только там.</p>
+                <p class="intro-copy" id="intro-copy">Создайте тестовый заказ и откройте экран покупателя со встроенной оплатой CloudPayments.</p>
 
-                <section class="form-card" aria-labelledby="form-title">
+                <section class="form-card" id="merchant-tools" aria-labelledby="form-title">
                     <div class="form-card-head">
                         <div>
                             <p class="section-kicker">ТЕСТОВЫЙ ПЛАТЁЖ</p>
@@ -52,7 +52,7 @@
                         <p class="form-footnote"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3 20 7v5c0 4.5-3 7.4-8 9-5-1.6-8-4.5-8-9V7l8-4Z"/><path d="m9 12 2 2 4-4"/></svg> Реквизиты карты не проходят через TITAN PAY</p>
                     </form>
                 </section>
-                <a class="back-link" href="/platform.html#overview"><span aria-hidden="true">←</span> Вернуться в кабинет мерчанта</a>
+                <a class="back-link" id="merchant-back" href="/platform.html#overview"><span aria-hidden="true">←</span> Вернуться в кабинет мерчанта</a>
             </section>
 
             <aside class="payment-column" aria-labelledby="preview-title">
@@ -60,23 +60,25 @@
                     <div class="window-topline">ПЛАТЁЖНОЕ ОКНО</div>
                     <div class="merchant-row">
                         <span class="merchant-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 2.8 20 7v10l-8 4.2L4 17V7l8-4.2Z"/><path d="m8 8 8 8m0-8-8 8"/></svg></span>
-                        <span><strong>Nordline Studio</strong><small>Защищённая оплата заказа</small></span>
+                        <span><strong id="merchant-name">Nordline Studio</strong><small>Защищённая оплата заказа</small></span>
                         <span class="cloud-mark">CP</span>
                     </div>
                     <h2 id="preview-title">Подтвердите платёж</h2>
-                    <p class="window-description">Проверьте детали заказа перед переходом к оплате.</p>
-                    <div class="chrome-art"><img src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/%D0%A1%D0%BD%D0%B8%D0%BC%D0%BE%D0%BA%20%D1%8D%D0%BA%D1%80%D0%B0%D0%BD%D0%B0%C2%A0%E2%80%94%202026-11-11%20%D0%B2%C2%A011.13.45-PsNHcvHF5c99EQchfI6dLTdWoz2Dvl.png" alt="Текучая скульптура из полированного тёмного хрома" loading="eager"></div>
+                    <p class="window-description">Проверьте детали заказа перед оплатой.</p>
+                    <div class="chrome-art" id="checkout-art"><img src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/%D0%A1%D0%BD%D0%B8%D0%BC%D0%BE%D0%BA%20%D1%8D%D0%BA%D1%80%D0%B0%D0%BD%D0%B0%C2%A0%E2%80%94%202026-11-11%20%D0%B2%C2%A011.13.45-PsNHcvHF5c99EQchfI6dLTdWoz2Dvl.png" alt="Текучая скульптура из полированного тёмного хрома" loading="eager"></div>
                     <div class="order-summary">
                         <div class="summary-line"><span>Номер заказа</span><strong id="preview-order">ORD-2026-0421</strong></div>
                         <div class="summary-line total-line"><span>К оплате</span><strong id="preview-amount">12 500,00 ₽</strong></div>
                     </div>
-                    <div id="cloudpayments-payment-blocks" hidden></div>
+                    <section class="payment-methods" id="payment-methods" aria-labelledby="methods-title" hidden>
+                        <h3 id="methods-title">Выберите способ оплаты</h3>
+                        <div id="cloudpayments-payment-blocks"></div>
+                    </section>
                     <div class="provider-state" id="payment" aria-live="polite">
-                        <p class="payment-message" id="message" role="status">После создания платежа защищённая ссылка появится здесь.</p>
-                        <a class="provider-link" id="payment-link" target="_blank" rel="noopener noreferrer" hidden>Перейти к оплате CloudPayments <span aria-hidden="true">↗</span></a>
+                        <p class="payment-message" id="message" role="status">Создайте платёж, чтобы открыть экран покупателя.</p>
                         <button class="status-action" type="button" id="refresh" hidden>Проверить статус платежа</button>
                     </div>
-                    <div class="provider-note"><span class="provider-lock" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 1 1 8 0v3"/></svg></span><span>Номер карты и код безопасности вводятся на странице CloudPayments. Мы не запрашиваем и не храним данные карты.</span></div>
+                    <div class="provider-note"><span class="provider-lock" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 1 1 8 0v3"/></svg></span><span>Реквизиты карты вводятся в защищённой форме CloudPayments.</span></div>
                 </div>
             </aside>
         </main>
