@@ -164,6 +164,7 @@ async function refreshPayment() {
 }
 
 if (params.has("paymentId")) {
+    document.querySelector("#demo-link").hidden = true;
     document.querySelector("#merchant-tools").hidden = true;
     document.querySelector("#merchant-back").hidden = true;
     document.querySelector("#checkout-art").hidden = true;
@@ -176,6 +177,29 @@ if (params.has("paymentId")) {
     refresh.addEventListener("click", refreshPayment);
     showMessage("Загружаем заказ…");
     refreshPayment();
+} else if (params.get("demo") === "1") {
+    document.querySelector("#demo-link").hidden = true;
+    document.querySelector("#merchant-tools").hidden = true;
+    document.querySelector("#checkout-art").hidden = true;
+    document.querySelector(".provider-note").hidden = true;
+    document.querySelector(".cloud-mark").hidden = true;
+    document.querySelector(".eyebrow").textContent = "Учебная симуляция";
+    document.querySelector("#page-title").textContent = "Оплата заказа";
+    document.querySelector("#intro-copy").textContent = "Выберите способ и результат учебной оплаты.";
+    merchantName.textContent = "Учебный магазин";
+    previewOrder.textContent = "DEMO-001";
+    previewAmount.textContent = formatAmount(1250);
+    methods.hidden = false;
+    const demoForm = document.querySelector("#demo-payment");
+    demoForm.hidden = false;
+    showMessage("Списание средств не производится.");
+    demoForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const data = new FormData(demoForm);
+        const outcome = data.get("outcome");
+        const status = outcome === "success" ? "Оплачено" : "Отклонено";
+        showMessage(`Учебный результат: ${status} (${data.get("method")}).`, outcome);
+    });
 } else {
     amountInput.addEventListener("input", () => {
         previewAmount.textContent = formatAmount(amountInput.value);

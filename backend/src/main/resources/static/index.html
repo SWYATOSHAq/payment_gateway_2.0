@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/styles.css?v=5">
-    <script src="/checkout.js?v=5" defer></script>
+    <script src="/checkout.js?v=6" defer></script>
 </head>
 <body>
     <div class="page-shell">
@@ -53,6 +53,7 @@
                     </form>
                 </section>
                 <a class="back-link" id="merchant-back" href="/platform.html#overview"><span aria-hidden="true">←</span> Вернуться в кабинет мерчанта</a>
+                <a class="back-link" id="demo-link" href="/?demo=1">Открыть учебную оплату</a>
             </section>
 
             <aside class="payment-column" aria-labelledby="preview-title">
@@ -73,6 +74,21 @@
                     <section class="payment-methods" id="payment-methods" aria-labelledby="methods-title" hidden>
                         <h3 id="methods-title">Выберите способ оплаты</h3>
                         <div id="cloudpayments-payment-blocks"></div>
+                        <form id="demo-payment" hidden>
+                            <label class="field">Способ оплаты
+                                <select name="method">
+                                    <option>Банковская карта</option>
+                                    <option>СБП</option>
+                                </select>
+                            </label>
+                            <label class="field">Результат симуляции
+                                <select name="outcome">
+                                    <option value="success">Успех</option>
+                                    <option value="error">Отказ</option>
+                                </select>
+                            </label>
+                            <button class="primary-action" type="submit">Имитировать оплату</button>
+                        </form>
                     </section>
                     <div class="provider-state" id="payment" aria-live="polite">
                         <p class="payment-message" id="message" role="status">Создайте платёж, чтобы открыть экран покупателя.</p>
