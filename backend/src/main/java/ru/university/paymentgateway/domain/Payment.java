@@ -47,6 +47,7 @@ public class Payment {
     private boolean archived;
     private Instant checkout_created_at;
     private String payment_method;
+    private String checkout_provider;
     @Column(name = "created_at")
     private Instant createdAt = Instant.now();
     @Column(name = "updated_at")
@@ -93,7 +94,8 @@ public class Payment {
     public Status status() { return status; }
     public boolean needs_review() { return needs_review; }
     public boolean archived() { return archived; }
-    public boolean cloudpayments() { return checkout_created_at != null; }
+    public boolean online_checkout() { return checkout_created_at != null; }
+    public String checkout_provider() { return checkout_provider; }
     public String payment_method() { return payment_method; }
     public Instant created_at() { return createdAt; }
     public Instant updated_at() { return updatedAt; }

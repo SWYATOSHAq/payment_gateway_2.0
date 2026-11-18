@@ -6,4 +6,4 @@ import java.util.UUID;
 
 public record CheckoutPayment(UUID uuid, BigDecimal amount, String status,
                               Instant checkout_created_at, String payment_url, String payment_method,
-                              boolean embedded) {}
+                              boolean embedded, String provider) {}

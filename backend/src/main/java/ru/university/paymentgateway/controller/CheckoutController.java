@@ -24,19 +24,24 @@ import org.springframework.web.bind.annotation.RestController;
 import ru.university.paymentgateway.config.OpenApiConfiguration;
 import ru.university.paymentgateway.dto.CheckoutResponse;
 import ru.university.paymentgateway.dto.EmbeddedCheckoutResponse;
+import ru.university.paymentgateway.dto.YooKassaCheckoutResponse;
 import ru.university.paymentgateway.service.CheckoutService;
 import ru.university.paymentgateway.service.CloudPaymentsNotifications;
+import ru.university.paymentgateway.service.YooKassaCheckoutService;
 
-@Tag(name = "Checkout и CloudPayments")
+@Tag(name = "Онлайн-оплата")
 @RestController
 @RequestMapping("/api")
 public class CheckoutController {
     private final CheckoutService checkout;
     private final CloudPaymentsNotifications notifications;
+    private final YooKassaCheckoutService yookassa;
 
-    public CheckoutController(CheckoutService checkout, CloudPaymentsNotifications notifications) {
+    public CheckoutController(CheckoutService checkout, CloudPaymentsNotifications notifications,
+                              YooKassaCheckoutService yookassa) {
         this.checkout = checkout;
         this.notifications = notifications;
+        this.yookassa = yookassa;
     }
 
     @PostMapping("/payments")
@@ -68,6 +73,22 @@ public class CheckoutController {
     @Operation(operationId = "getEmbeddedPayment", summary = "Получить данные и статус встроенной оплаты")
     public ResponseEntity<EmbeddedCheckoutResponse> embedded(@PathVariable UUID id) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(checkout.find_embedded(id));
+    }
+
+    @PostMapping("/payments/yookassa")
+    @Operation(operationId = "createYooKassaPayment", summary = "Создать тестовый платёж ЮKassa")
+    @SecurityRequirement(name = OpenApiConfiguration.CHECKOUT_KEY)
+    public ResponseEntity<YooKassaCheckoutResponse> create_yookassa(@Parameter(hidden = true)
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
+            @RequestBody CreateCheckoutPayment request) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(yookassa.create(authorization, request.orderNumber(), request.amount()));
+    }
+
+    @GetMapping("/payments/{id}/yookassa")
+    @Operation(operationId = "getYooKassaPayment", summary = "Получить подтверждённый статус платежа ЮKassa")
+    public ResponseEntity<YooKassaCheckoutResponse> yookassa(@PathVariable UUID id) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(yookassa.find(id));
     }
 
     @PostMapping(value = "/cloudpayments/check", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)

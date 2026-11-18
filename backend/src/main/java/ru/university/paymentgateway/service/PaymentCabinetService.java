@@ -117,7 +117,7 @@ public class PaymentCabinetService {
     @Transactional
     public void delete(UUID actor, UUID id, long version) {
         Payment payment = find_current(id, version);
-        if (!payment.archived() || payment.cloudpayments()) {
+        if (!payment.archived() || payment.online_checkout()) {
             throw conflict("Окончательно удалить можно только ручной платёж из архива");
         }
         payments.delete(payment);
@@ -151,7 +151,7 @@ public class PaymentCabinetService {
     }
 
     private static void require_new_manual(Payment payment) {
-        if (payment.cloudpayments() || payment.status() != Status.CREATED) {
+        if (payment.online_checkout() || payment.status() != Status.CREATED) {
             throw conflict("Сумма и статус доступны для изменения только у нового ручного платежа");
         }
     }

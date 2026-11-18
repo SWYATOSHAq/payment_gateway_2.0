@@ -43,7 +43,7 @@ public class CheckoutService {
     }
 
     public CheckoutResponse create(String authorization, String order_number, BigDecimal amount) {
-        CheckoutPayment payment = reserve(authorization, order_number, amount, false);
+        CheckoutPayment payment = reserve(authorization, order_number, amount, false, "CLOUDPAYMENTS", provider_configured);
         if (payment.payment_url() != null || !"CREATED".equals(payment.status())) {
             return CheckoutResponse.from(payment);
         }
@@ -66,7 +66,8 @@ public class CheckoutService {
         if (!embedded_enabled) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Встроенная оплата не настроена");
         }
-        return find_embedded(reserve(authorization, order_number, amount, true).uuid());
+        var payment = reserve(authorization, order_number, amount, true, "CLOUDPAYMENTS", provider_configured);
+        return find_embedded(payment.uuid());
     }
 
     public EmbeddedCheckoutResponse find_embedded(UUID id) {
@@ -79,8 +80,9 @@ public class CheckoutService {
                 can_pay ? public_id : null, can_pay, payment.processing());
     }
 
-    private CheckoutPayment reserve(String authorization, String order_number, BigDecimal amount, boolean embedded) {
-        if (checkout_key.isBlank() || !provider_configured || merchant_id <= 0) {
+    CheckoutPayment reserve(String authorization, String order_number, BigDecimal amount, boolean embedded,
+                            String provider, boolean configured) {
+        if (checkout_key.isBlank() || !configured || merchant_id <= 0) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Оплата не настроена");
         }
         if (authorization == null || !MessageDigest.isEqual(
@@ -96,12 +98,12 @@ public class CheckoutService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Проверьте номер заказа и сумму");
         }
 
-        var payment = payments.reserve(merchant_id, order, amount.setScale(2, RoundingMode.UNNECESSARY), embedded)
+        var payment = payments.reserve(merchant_id, order, amount.setScale(2, RoundingMode.UNNECESSARY), embedded, provider)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Магазин не настроен или отключён"));
         if (payment.checkout_created_at() == null) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Номер заказа уже используется ручным платежом");
         }
-        if (payment.embedded() != embedded) {
+        if (payment.embedded() != embedded || !provider.equals(payment.provider())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Для заказа уже выбран другой сценарий оплаты");
         }
         if (payment.amount().compareTo(amount) != 0) {

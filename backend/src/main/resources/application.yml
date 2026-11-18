@@ -22,6 +22,9 @@ gateway:
   checkout:
     merchant-id: ${GATEWAY_MERCHANT_ID:0}
     key: ${GATEWAY_CHECKOUT_KEY:}
+  yookassa:
+    shop-id: ${YOOKASSA_SHOP_ID:}
+    secret-key: ${YOOKASSA_SECRET_KEY:}
   cloudpayments:
     public-id: ${CLOUDPAYMENTS_PUBLIC_ID:}
     api-secret: ${CLOUDPAYMENTS_API_SECRET:}

@@ -21,15 +21,15 @@ public class CheckoutRepository {
     }
 
     @Transactional
-    public Optional<CheckoutPayment> reserve(long merchant_id, String order_number, BigDecimal amount, boolean embedded) {
+    public Optional<CheckoutPayment> reserve(long merchant_id, String order_number, BigDecimal amount, boolean embedded, String provider) {
         var inserted = jdbc.sql("""
-                INSERT INTO payments (merchant_id, order_number, amount, currency, description, checkout_created_at, embedded_checkout)
-                SELECT id, :order, :amount, 'RUB', :description, now(), :embedded FROM merchants WHERE id = :merchant AND active
+                INSERT INTO payments (merchant_id, order_number, amount, currency, description, checkout_created_at, embedded_checkout, checkout_provider)
+                SELECT id, :order, :amount, 'RUB', :description, now(), :embedded, :provider FROM merchants WHERE id = :merchant AND active
                 ON CONFLICT (merchant_id, order_number) DO NOTHING
-                RETURNING uuid, amount, status, checkout_created_at, payment_url, payment_method, embedded_checkout
+                RETURNING uuid, amount, status, checkout_created_at, payment_url, payment_method, embedded_checkout, checkout_provider
                 """)
                 .param("merchant", merchant_id).param("order", order_number).param("amount", amount)
-                .param("description", "Заказ " + order_number).param("embedded", embedded)
+                .param("description", "Заказ " + order_number).param("embedded", embedded).param("provider", provider)
                 .query(CheckoutRepository::map_payment).optional();
         if (inserted.isPresent()) {
             if (embedded) {
@@ -39,7 +39,7 @@ public class CheckoutRepository {
             return inserted;
         }
         return jdbc.sql("""
-                SELECT p.uuid, p.amount, p.status, p.checkout_created_at, p.payment_url, p.payment_method, p.embedded_checkout
+                SELECT p.uuid, p.amount, p.status, p.checkout_created_at, p.payment_url, p.payment_method, p.embedded_checkout, p.checkout_provider
                 FROM payments p JOIN merchants m ON m.id = p.merchant_id
                 WHERE p.merchant_id = :merchant AND p.order_number = :order AND m.active
                 """).param("merchant", merchant_id).param("order", order_number)
@@ -48,8 +48,8 @@ public class CheckoutRepository {
 
     public Optional<CheckoutPayment> find(UUID uuid) {
         return jdbc.sql("""
-                SELECT uuid, amount, status, checkout_created_at, payment_url, payment_method, embedded_checkout
-                FROM payments WHERE uuid = :uuid AND checkout_created_at IS NOT NULL
+                SELECT uuid, amount, status, checkout_created_at, payment_url, payment_method, embedded_checkout, checkout_provider
+                FROM payments WHERE uuid = :uuid AND checkout_provider = 'CLOUDPAYMENTS'
                 """)
                 .param("uuid", uuid).query(CheckoutRepository::map_payment).optional();
     }
@@ -58,7 +58,7 @@ public class CheckoutRepository {
     public void save_link(UUID uuid, String url) {
         int updated = jdbc.sql("""
                 UPDATE payments SET payment_url = :url, updated_at = now(), version = version + 1
-                WHERE uuid = :uuid AND payment_url IS NULL AND NOT embedded_checkout
+                WHERE uuid = :uuid AND checkout_provider = 'CLOUDPAYMENTS' AND payment_url IS NULL AND NOT embedded_checkout
                 """)
                 .param("uuid", uuid).param("url", url).update();
         if (updated == 1) {
@@ -73,7 +73,7 @@ public class CheckoutRepository {
                 SET status = 'COMPLETED', provider_transaction_id = :transaction, payment_method = :method,
                     checked_transaction_id = NULL,
                     updated_at = now(), version = version + 1
-                WHERE uuid = :uuid AND checkout_created_at IS NOT NULL
+                WHERE uuid = :uuid AND checkout_provider = 'CLOUDPAYMENTS'
                     AND amount = :amount AND currency = 'RUB' AND status = 'CREATED'
                     AND (NOT embedded_checkout OR checked_transaction_id = :transaction)
                 """)
@@ -85,7 +85,7 @@ public class CheckoutRepository {
         }
         return jdbc.sql("""
                 SELECT EXISTS (SELECT 1 FROM payments
-                    WHERE uuid = :uuid AND amount = :amount AND status = 'COMPLETED'
+                    WHERE uuid = :uuid AND checkout_provider = 'CLOUDPAYMENTS' AND amount = :amount AND status = 'COMPLETED'
                         AND provider_transaction_id = :transaction)
                 """)
                 .param("uuid", uuid).param("amount", amount).param("transaction", transaction_id)
@@ -97,7 +97,7 @@ public class CheckoutRepository {
                 SELECT p.uuid, p.order_number, m.name, p.description, p.amount, p.status, p.payment_method,
                     m.active AND NOT p.archived AS available, p.checked_transaction_id IS NOT NULL AS processing
                 FROM payments p JOIN merchants m ON m.id = p.merchant_id
-                WHERE p.uuid = :id AND p.embedded_checkout
+                WHERE p.uuid = :id AND p.checkout_provider = 'CLOUDPAYMENTS' AND p.embedded_checkout
                 """).param("id", id).query((row, index) -> new EmbeddedPayment(row.getObject("uuid", UUID.class),
                         row.getString("order_number"), row.getString("name"), row.getString("description"),
                         row.getBigDecimal("amount"), row.getString("status"), row.getString("payment_method"),
@@ -110,7 +110,7 @@ public class CheckoutRepository {
                 SELECT p.amount, p.status, p.embedded_checkout, p.checked_transaction_id,
                     m.active AND NOT p.archived AS available
                 FROM payments p JOIN merchants m ON m.id = p.merchant_id
-                WHERE p.uuid = :id AND p.checkout_created_at IS NOT NULL
+                WHERE p.uuid = :id AND p.checkout_provider = 'CLOUDPAYMENTS'
                 FOR UPDATE OF p
                 """).param("id", id).query((row, index) -> new CheckPayment(row.getBigDecimal("amount"),
                         row.getString("status"), row.getBoolean("embedded_checkout"),
@@ -137,10 +137,53 @@ public class CheckoutRepository {
     public void release(UUID id, BigDecimal amount, long transaction) {
         jdbc.sql("""
                 UPDATE payments SET checked_transaction_id = NULL
-                WHERE uuid = :id AND amount = :amount AND embedded_checkout
+                WHERE uuid = :id AND checkout_provider = 'CLOUDPAYMENTS' AND amount = :amount AND embedded_checkout
                     AND checked_transaction_id = :transaction
                 """).param("id", id).param("amount", amount).param("transaction", transaction).update();
     }
+
+    public Optional<YooKassaPayment> yookassa(UUID id) {
+        return jdbc.sql("""
+                SELECT p.uuid, p.order_number, m.name, p.description, p.amount, p.status, p.payment_method,
+                    p.external_payment_id, p.confirmation_token, m.active AND NOT p.archived AS available
+                FROM payments p JOIN merchants m ON m.id = p.merchant_id
+                WHERE p.uuid = :id AND p.checkout_provider = 'YOOKASSA'
+                """).param("id", id).query((row, index) -> new YooKassaPayment(
+                        row.getObject("uuid", UUID.class), row.getString("order_number"), row.getString("name"),
+                        row.getString("description"), row.getBigDecimal("amount"), row.getString("status"),
+                        row.getString("payment_method"), row.getString("external_payment_id"),
+                        row.getString("confirmation_token"), row.getBoolean("available"))).optional();
+    }
+
+    public void save_yookassa(UUID id, String external_id, String token) {
+        jdbc.sql("""
+                UPDATE payments
+                SET external_payment_id = :external, confirmation_token = :token,
+                    updated_at = now(), version = version + 1
+                WHERE uuid = :id AND checkout_provider = 'YOOKASSA' AND external_payment_id IS NULL
+                """).param("id", id).param("external", external_id).param("token", token).update();
+    }
+
+    @Transactional
+    public void finish_yookassa(UUID id, String external_id, boolean paid) {
+        String status = paid ? "COMPLETED" : "CANCELLED";
+        int updated = jdbc.sql("""
+                UPDATE payments
+                SET status = :status, payment_method = :method, confirmation_token = NULL,
+                    updated_at = now(), version = version + 1
+                WHERE uuid = :id AND checkout_provider = 'YOOKASSA' AND external_payment_id = :external
+                    AND status = 'CREATED'
+                """).param("id", id).param("external", external_id).param("status", status)
+                .param("method", paid ? "bank_card" : null).update();
+        if (updated == 1) {
+            audit.record(null, "PAYMENT_" + status, "PAYMENT", id,
+                    paid ? "ЮKassa подтвердила оплату" : "ЮKassa отменила платёж");
+        }
+    }
+
+    public record YooKassaPayment(UUID id, String order_number, String merchant_name, String description,
+                                 BigDecimal amount, String status, String payment_method, String external_id,
+                                 String token, boolean available) {}
 
     public record EmbeddedPayment(UUID id, String order_number, String merchant_name, String description,
                                   BigDecimal amount, String status, String payment_method, boolean available,
@@ -152,6 +195,7 @@ public class CheckoutRepository {
         var created = row.getObject("checkout_created_at", OffsetDateTime.class);
         return new CheckoutPayment(row.getObject("uuid", UUID.class), row.getBigDecimal("amount"),
                 row.getString("status"), created == null ? null : created.toInstant(),
-                row.getString("payment_url"), row.getString("payment_method"), row.getBoolean("embedded_checkout"));
+                row.getString("payment_url"), row.getString("payment_method"), row.getBoolean("embedded_checkout"),
+                row.getString("checkout_provider"));
     }
 }

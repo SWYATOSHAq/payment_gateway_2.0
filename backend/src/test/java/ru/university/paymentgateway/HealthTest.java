@@ -219,4 +219,15 @@ class HealthTest {
                 .andExpect(jsonPath("$.status").value(503))
                 .andExpect(jsonPath("$.detail").value("Встроенная оплата не настроена"));
     }
+
+    @Test
+    void yookassa_checkout_requires_test_credentials() throws Exception {
+        mvc.perform(post("/api/payments/yookassa")
+                        .contentType("application/json")
+                        .content("""
+                                {"orderNumber":"demo-1","amount":125.50}
+                                """))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.status").value(503));
+    }
 }

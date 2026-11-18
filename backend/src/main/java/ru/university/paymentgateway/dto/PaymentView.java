@@ -10,12 +10,12 @@ import ru.university.paymentgateway.domain.Payment;
 public record PaymentView(UUID id, long number, String orderNumber, BigDecimal amount, String currency,
                           String description, MerchantView merchant, Payment.Status status, boolean needsReview,
                           List<String> tags, AmountCategory amountCategory, Instant createdAt, Instant updatedAt,
-                          long version, boolean archived, boolean cloudPayments, String paymentMethod) {
+                          long version, boolean archived, boolean cloudPayments, String paymentMethod, String provider) {
     public static PaymentView from(Payment payment) {
         return new PaymentView(payment.uuid(), payment.id(), payment.order_number(), payment.amount(),
                 payment.currency(), payment.description(), MerchantView.from(payment.merchant()), payment.status(),
                 payment.needs_review(), payment.tags().stream().sorted().toList(), AmountCategory.from(payment.amount()),
                 payment.created_at(), payment.updated_at(), payment.version(), payment.archived(),
-                payment.cloudpayments(), payment.payment_method());
+                "CLOUDPAYMENTS".equals(payment.checkout_provider()), payment.payment_method(), payment.checkout_provider());
     }
 }
