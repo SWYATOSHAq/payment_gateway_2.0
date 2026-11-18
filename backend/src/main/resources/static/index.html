@@ -4,13 +4,13 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#173b34">
-    <meta name="description" content="Создайте платёж и перейдите на защищённую страницу CloudPayments.">
+    <meta name="description" content="Тестовая оплата банковской картой через ЮKassa.">
     <title>TITAN PAY — защищённая оплата</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/styles.css?v=5">
-    <script src="/checkout.js?v=6" defer></script>
+    <link rel="stylesheet" href="/styles.css?v=6">
+    <script src="/checkout.js?v=7" defer></script>
 </head>
 <body>
     <div class="page-shell">
@@ -24,9 +24,9 @@
 
         <main class="checkout-layout">
             <section class="checkout-intro" aria-labelledby="page-title">
-                <div class="eyebrow"><span class="status-dot"></span> ОПЛАТА ЧЕРЕЗ CLOUDPAYMENTS</div>
+                <div class="eyebrow"><span class="status-dot"></span> ТЕСТОВАЯ ОПЛАТА ЧЕРЕЗ ЮKASSA</div>
                 <h1 id="page-title">Оплата<br><span>без лишнего.</span></h1>
-                <p class="intro-copy" id="intro-copy">Создайте тестовый заказ и откройте экран покупателя со встроенной оплатой CloudPayments.</p>
+                <p class="intro-copy" id="intro-copy">Создайте тестовый заказ и откройте экран оплаты банковской картой.</p>
 
                 <section class="form-card" id="merchant-tools" aria-labelledby="form-title">
                     <div class="form-card-head">
@@ -46,7 +46,7 @@
                         </label>
                         <label class="field" for="store-key">Ключ магазина
                             <span class="key-input"><input id="store-key" name="key" type="password" autocomplete="off" spellcheck="false" placeholder="Введите ключ для авторизации" required><button id="toggle-key" type="button" aria-label="Показать ключ" aria-pressed="false">Показать</button></span>
-                            <small>Используется только для этого запроса и не сохраняется</small>
+                            <small>Ключ шлюза TITAN PAY для создания заказа</small>
                         </label>
                         <button class="primary-action" type="submit"><span>Создать платёж</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></button>
                         <p class="form-footnote"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3 20 7v5c0 4.5-3 7.4-8 9-5-1.6-8-4.5-8-9V7l8-4Z"/><path d="m9 12 2 2 4-4"/></svg> Реквизиты карты не проходят через TITAN PAY</p>
@@ -62,7 +62,6 @@
                     <div class="merchant-row">
                         <span class="merchant-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 2.8 20 7v10l-8 4.2L4 17V7l8-4.2Z"/><path d="m8 8 8 8m0-8-8 8"/></svg></span>
                         <span><strong id="merchant-name">Nordline Studio</strong><small>Защищённая оплата заказа</small></span>
-                        <span class="cloud-mark">CP</span>
                     </div>
                     <h2 id="preview-title">Подтвердите платёж</h2>
                     <p class="window-description">Проверьте детали заказа перед оплатой.</p>
@@ -72,15 +71,9 @@
                         <div class="summary-line total-line"><span>К оплате</span><strong id="preview-amount">12 500,00 ₽</strong></div>
                     </div>
                     <section class="payment-methods" id="payment-methods" aria-labelledby="methods-title" hidden>
-                        <h3 id="methods-title">Выберите способ оплаты</h3>
-                        <div id="cloudpayments-payment-blocks"></div>
+                        <h3 id="methods-title">Оплата банковской картой</h3>
+                        <div id="payment-widget"></div>
                         <form id="demo-payment" hidden>
-                            <label class="field">Способ оплаты
-                                <select name="method">
-                                    <option>Банковская карта</option>
-                                    <option>СБП</option>
-                                </select>
-                            </label>
                             <label class="field">Результат симуляции
                                 <select name="outcome">
                                     <option value="success">Успех</option>
@@ -94,7 +87,7 @@
                         <p class="payment-message" id="message" role="status">Создайте платёж, чтобы открыть экран покупателя.</p>
                         <button class="status-action" type="button" id="refresh" hidden>Проверить статус платежа</button>
                     </div>
-                    <div class="provider-note"><span class="provider-lock" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 1 1 8 0v3"/></svg></span><span>Реквизиты карты вводятся в защищённой форме CloudPayments.</span></div>
+                    <div class="provider-note"><span class="provider-lock" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 1 1 8 0v3"/></svg></span><span id="provider-description">Реквизиты тестовой карты вводятся в форме ЮKassa.</span></div>
                 </div>
             </aside>
         </main>

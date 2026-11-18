@@ -10,10 +10,13 @@ const merchantName = document.querySelector("#merchant-name");
 const keyInput = document.querySelector("#store-key");
 const toggleKey = document.querySelector("#toggle-key");
 const methods = document.querySelector("#payment-methods");
-const container = document.querySelector("#cloudpayments-payment-blocks");
+const container = document.querySelector("#payment-widget");
 const params = new URLSearchParams(location.search);
-const paymentId = params.get("paymentId");
+const isYooKassa = params.has("yookassaPaymentId");
+const paymentId = params.get(isYooKassa ? "yookassaPaymentId" : "paymentId");
+if (isYooKassa) document.body.classList.add("yookassa-checkout");
 let blocks;
+let widget;
 let sdk;
 let awaitingConfirmation = false;
 
@@ -29,7 +32,7 @@ function showMessage(text, state = "default") {
 }
 
 async function request(url, options) {
-    const response = await fetch(url, options);
+    const response = await fetch(url, {...options, cache: "no-store"});
     const contentType = response.headers.get("content-type") || "";
     if (!/\b(?:application\/json|application\/[\w.+-]+\+json)\b/i.test(contentType)) {
         throw new Error(`Платёжный API вернул неожиданный ответ (HTTP ${response.status}). Проверьте адрес backend.`);
@@ -49,16 +52,20 @@ async function request(url, options) {
     return body;
 }
 
-function loadPaymentBlocks() {
-    if (window.cp?.PaymentBlocks) return Promise.resolve();
+function loadWidgetSdk() {
+    const available = () => isYooKassa ? window.YooMoneyCheckoutWidget : window.cp?.PaymentBlocks;
+    const provider = isYooKassa ? "ЮKassa" : "CloudPayments";
+    if (available()) return Promise.resolve();
     if (!sdk) {
         const script = document.createElement("script");
-        script.src = "https://widget.cloudpayments.ru/bundles/paymentblocks.js";
+        script.src = isYooKassa
+            ? "https://yookassa.ru/checkout-widget/v1/checkout-widget.js"
+            : "https://widget.cloudpayments.ru/bundles/paymentblocks.js";
         sdk = new Promise((resolve, reject) => {
-            script.onload = () => window.cp?.PaymentBlocks
+            script.onload = () => available()
                 ? resolve()
-                : reject(new Error("Форма CloudPayments недоступна."));
-            script.onerror = () => reject(new Error("Не удалось загрузить форму CloudPayments."));
+                : reject(new Error(`Форма ${provider} недоступна.`));
+            script.onerror = () => reject(new Error(`Не удалось загрузить форму ${provider}.`));
             document.head.append(script);
         }).catch((error) => {
             script.remove();
@@ -70,6 +77,11 @@ function loadPaymentBlocks() {
 }
 
 function hideMethods() {
+    if (widget) {
+        const checkout = widget;
+        widget = undefined;
+        checkout.destroy();
+    }
     if (blocks) {
         blocks.off("success");
         blocks.off("fail");
@@ -80,11 +92,15 @@ function hideMethods() {
 }
 
 async function mountMethods(payment) {
-    if (blocks) return;
-    showMessage("Загружаем способы оплаты…");
-    await loadPaymentBlocks();
+    if (blocks || widget) return;
+    showMessage("Загружаем платёжную форму…");
+    await loadWidgetSdk();
     methods.hidden = false;
     try {
+        if (isYooKassa) {
+            await mountYooKassa(payment.confirmationToken);
+            return;
+        }
         blocks = new window.cp.PaymentBlocks({
             publicTerminalId: payment.publicTerminalId,
             externalId: payment.id,
@@ -112,8 +128,35 @@ async function mountMethods(payment) {
     }
 }
 
+async function mountYooKassa(confirmationToken) {
+    if (!confirmationToken) throw new Error("ЮKassa не вернула токен платёжной формы.");
+
+    const checkout = new window.YooMoneyCheckoutWidget({
+        confirmation_token: confirmationToken,
+        error_callback(error) {
+            queueMicrotask(() => {
+                if (widget !== checkout) return;
+                hideMethods();
+                showMessage(error?.error === "token_expired"
+                    ? "Истёк срок действия платёжной формы. Создайте новый тестовый заказ."
+                    : "Не удалось открыть форму ЮKassa. Обновите статус платежа.", "error");
+            });
+        }
+    });
+    widget = checkout;
+    checkout.on("complete", () => {
+        if (widget !== checkout) return;
+        awaitingConfirmation = true;
+        hideMethods();
+        waitForConfirmation();
+    });
+    await checkout.render(container.id);
+    if (widget === checkout) showMessage("");
+}
+
 async function loadPayment() {
-    const payment = await request("/api/payments/" + encodeURIComponent(paymentId) + "/embedded");
+    const endpoint = isYooKassa ? "/yookassa" : "/embedded";
+    const payment = await request("/api/payments/" + encodeURIComponent(paymentId) + endpoint);
     previewOrder.textContent = payment.orderNumber;
     previewAmount.textContent = formatAmount(payment.amount);
     merchantName.textContent = payment.merchantName;
@@ -163,13 +206,21 @@ async function refreshPayment() {
     }
 }
 
-if (params.has("paymentId")) {
+if (params.has("paymentId") || isYooKassa) {
     document.querySelector("#demo-link").hidden = true;
     document.querySelector("#merchant-tools").hidden = true;
     document.querySelector("#merchant-back").hidden = true;
     document.querySelector("#checkout-art").hidden = true;
     document.querySelector("#page-title").textContent = "Оплата заказа";
-    document.querySelector("#intro-copy").textContent = "Выберите удобный способ оплаты.";
+    document.querySelector("#intro-copy").textContent = isYooKassa
+        ? "Для этого заказа используется тестовая банковская карта."
+        : "Выберите удобный способ оплаты.";
+    if (!isYooKassa) {
+        document.querySelector(".eyebrow").textContent = "Оплата через CloudPayments";
+        document.querySelector("#methods-title").textContent = "Выберите способ оплаты";
+        document.querySelector("#provider-description").textContent =
+            "Реквизиты карты вводятся в защищённой форме CloudPayments.";
+    }
     previewOrder.textContent = "—";
     previewAmount.textContent = "— ₽";
     merchantName.textContent = "Загружаем магазин…";
@@ -182,10 +233,9 @@ if (params.has("paymentId")) {
     document.querySelector("#merchant-tools").hidden = true;
     document.querySelector("#checkout-art").hidden = true;
     document.querySelector(".provider-note").hidden = true;
-    document.querySelector(".cloud-mark").hidden = true;
     document.querySelector(".eyebrow").textContent = "Учебная симуляция";
     document.querySelector("#page-title").textContent = "Оплата заказа";
-    document.querySelector("#intro-copy").textContent = "Выберите способ и результат учебной оплаты.";
+    document.querySelector("#intro-copy").textContent = "Выберите результат симуляции оплаты банковской картой.";
     merchantName.textContent = "Учебный магазин";
     previewOrder.textContent = "DEMO-001";
     previewAmount.textContent = formatAmount(1250);
@@ -198,7 +248,7 @@ if (params.has("paymentId")) {
         const data = new FormData(demoForm);
         const outcome = data.get("outcome");
         const status = outcome === "success" ? "Оплачено" : "Отклонено";
-        showMessage(`Учебный результат: ${status} (${data.get("method")}).`, outcome);
+        showMessage(`Учебный результат: ${status}.`, outcome);
     });
 } else {
     amountInput.addEventListener("input", () => {
@@ -221,12 +271,12 @@ if (params.has("paymentId")) {
         showMessage("Создаём тестовый платёж…");
         const data = new FormData(form);
         try {
-            const payment = await request("/api/payments/embedded", {
+            const payment = await request("/api/payments/yookassa", {
                 method: "POST",
                 headers: {"Content-Type": "application/json", Authorization: "Bearer " + data.get("key")},
                 body: JSON.stringify({orderNumber: data.get("orderNumber"), amount: data.get("amount")})
             });
-            location.assign("/?paymentId=" + encodeURIComponent(payment.id));
+            location.assign("/?yookassaPaymentId=" + encodeURIComponent(payment.id));
         } catch (error) {
             showMessage(error.message, "error");
         } finally {

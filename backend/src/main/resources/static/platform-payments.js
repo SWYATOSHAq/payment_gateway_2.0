@@ -15,8 +15,12 @@ function tags(data, payment) {
     return [...new Set(raw.split("\n").map((tag) => tag.trim()).filter(Boolean))];
 }
 
+function paymentProvider(payment) {
+    return payment.provider || (payment.cloudPayments ? "CLOUDPAYMENTS" : null);
+}
+
 function paymentForm(merchants, payment) {
-    const financial = !payment || (!payment.cloudPayments && payment.status === "CREATED");
+    const financial = !payment || (!paymentProvider(payment) && payment.status === "CREATED");
     return `<form id="payment-form" class="cabinet-form">
         <div class="form-grid">
             ${!payment ? field("Магазин", `<select name="merchantId" required>${options(
@@ -237,12 +241,14 @@ export async function paymentPage(context) {
     const path = PAYMENT_PATH + "/" + encodeURIComponent(id);
     const [payment, notes] = await Promise.all([api(path), api(path + "/notes")]);
     const writable = canEdit(user) && !payment.archived;
-    const permanent = user.role === "ADMIN" && payment.archived && !payment.cloudPayments;
+    const provider = paymentProvider(payment);
+    const permanent = user.role === "ADMIN" && payment.archived && !provider;
     const fields = {
         "Заказ": esc(payment.orderNumber || "—"), "Магазин": esc(payment.merchant.name),
         "Сумма": money(payment.amount), "Статус": status(payment.status),
-        "Источник": payment.cloudPayments ? "CloudPayments" : "Ручной платёж",
-        "Способ оплаты": esc(payment.paymentMethod || "—"), "Категория": esc(categories[payment.amountCategory]),
+        "Источник": ({YOOKASSA: "ЮKassa", CLOUDPAYMENTS: "CloudPayments"})[provider] || "Ручной платёж",
+        "Способ оплаты": esc(payment.paymentMethod === "bank_card" ? "Банковская карта" : payment.paymentMethod || "—"),
+        "Категория": esc(categories[payment.amountCategory]),
         "На проверке": payment.needsReview ? "Да" : "Нет", "Архив": payment.archived ? "Да" : "Нет",
         "Создан": esc(date(payment.createdAt)), "Изменён": esc(date(payment.updatedAt)),
         "Теги": esc(payment.tags.join(", ") || "—"), "UUID": esc(payment.id)
